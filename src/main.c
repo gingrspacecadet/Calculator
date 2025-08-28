@@ -6,14 +6,17 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <signal.h>
 #include <dirent.h>
 #include <stdbool.h>
 #include <errno.h>
 
 #define PARSE_TOKEN_DELIM " \t"
-#define HERMES_SUCCESS 1
-#define HERMES_FAILURE 0
+
+struct winsize w;
+int COLS;
+int ROWS;
 
 typedef const enum sizes {
     BUFFER_MAX_SIZE = 1024,
@@ -68,6 +71,7 @@ String read_line(void) {
         switch (c) {
             case ESCAPE:
                 exit(EXIT_SUCCESS);
+                break;
             case BACKSPACE:
                 printf("\b \b");
                 fflush(stdout);
@@ -83,15 +87,36 @@ String read_line(void) {
     return buffer;
 }
 
+void draw_calc(int rows, int cols) {
+    printf("\033[H");
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            if (i == 0 || i == rows - 1) {
+                putc('#', stdout);
+            } else if (j == 0 || j == cols - 1) {
+                putc('#', stdout);
+            } else {
+                putc(' ', stdout);
+            }
+        }
+    }
+    fflush(stdout);
+}
+
 int main(int argc, char** argv) {
     name = argv[0];
+    ioctl(0, TIOCGWINSZ, &w);
+    COLS = w.ws_col;
+    ROWS = w.ws_row;
 
     int status;
     while (true) {
 
+        draw_calc(ROWS, COLS);
         enableRawMode();
         String line = read_line();
         disableRawMode();
+        printf("\n");
 
         free(line.chars);
     }
