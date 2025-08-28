@@ -1,6 +1,43 @@
-#include "globals.h"
+#include <termios.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <signal.h>
+#include <dirent.h>
+#include <stdbool.h>
+#include <errno.h>
 
-const char* name = "hermes";
+#define PARSE_TOKEN_DELIM " \t"
+#define HERMES_SUCCESS 1
+#define HERMES_FAILURE 0
+
+typedef const enum sizes {
+    BUFFER_MAX_SIZE = 1024,
+    MAX_LINE = 512,
+} sizes_t;
+
+typedef enum chars {
+    CTRL_D = 4,
+    TAB = 9,
+    ENTER = 13,
+    ESCAPE = 27,
+    UP = 65,
+    DOWN = 66,
+    RIGHT = 67,
+    LEFT = 68,
+    BACKSPACE = 127,
+} chars_t;
+
+typedef struct String {
+    char* chars;
+    int len;
+} String;
+
+const char* name = "calc";
 struct termios orig_termios;
 
 void disableRawMode(void) {
@@ -30,52 +67,13 @@ String read_line(void) {
     while (read(STDIN_FILENO, &c, 1) == 1 && c != ENTER) {
         switch (c) {
             case ESCAPE:
-                read(STDIN_FILENO, &c, 1);
-                switch (c) {
-                    case '[':
-                        read(STDIN_FILENO, &c, 1);
-                        switch (c) {
-                            case UP:
-                                printf("\033[A");
-                                fflush(stdout);
-                                break;
-                            case DOWN:
-                                printf("\033[B");
-                                fflush(stdout);
-                                break;
-                            case RIGHT:
-                                printf("\033[C");
-                                fflush(stdout);
-                                break;
-                            case LEFT:
-                                printf("\033[D");
-                                fflush(stdout);
-                                break;
-                        }
-                }
-                break;
-            case CTRL_D:
-                if (buffer.len == 0) {
-                    printf("\n\r");
-                    disableRawMode();
-                    exit(SIGINT);
-                }
-                break;
+                exit(EXIT_SUCCESS);
             case BACKSPACE:
-                if (buffer.len > 0) {
-                    printf("\b \b");
-                    fflush(stdout);
-                    buffer.chars[--buffer.len] = '\0';
-                }
-                break;
-            case TAB:
-                // buffer = handle_tab(buffer);
-                // printf("\n\r%s%s", PROMPT, buffer.chars);
-                // fflush(stdout);
+                printf("\b \b");
+                fflush(stdout);
                 break;
             default:
-                buffer.chars[buffer.len++] = (char)c;
-                printf("\r%s", buffer.chars);
+                putc(c, stdout);
                 fflush(stdout);
                 break;
         }
@@ -85,53 +83,17 @@ String read_line(void) {
     return buffer;
 }
 
-int parse_line(String line, String **out) {
-    String token = { .chars = strtok(line.chars, PARSE_TOKEN_DELIM), .len = strlen(token.chars) };
-    String *buffer = malloc(sizeof(String) * BUFFER_MAX_SIZE);
-    if (!buffer) {
-        perror(name);
-        exit(1);
-    }
-    int i = 0;
-
-    while (token.chars != NULL) {
-        switch (token.chars[0]) {
-            case '$':
-                token.chars = getenv(token.chars + 1);
-                break;
-        }
-        buffer[i].chars = token.chars;
-        buffer[i].len = token.len;
-        token.chars = strtok(NULL, PARSE_TOKEN_DELIM);
-        i++;
-    }
-
-    *out = buffer;
-    return i;
-}
-
 int main(int argc, char** argv) {
-    printf("\033[2J\033[H");
     name = argv[0];
 
     int status;
     while (true) {
+
         enableRawMode();
-
         String line = read_line();
-
-        printf("\n\r");
-        fflush(stdout);
-
-        String *args;
-        int argc = parse_line(line, &args);
-        if (argc > 0) {
-            disableRawMode();
-            // status = execute(args, argc);
-        }
+        disableRawMode();
 
         free(line.chars);
-        free(args);
     }
 
     return 0;
